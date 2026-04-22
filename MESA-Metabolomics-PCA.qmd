@@ -1,0 +1,378 @@
+---
+title: "MESA Red Meat Metabolites Project"
+author: "LekkiWood (LekkiWood@Gmail.com)"
+date: today
+format:
+  pdf:
+    pdf-engine: lualatex
+    includes:
+      in_header: 'gt_packages.sty'
+    header-includes:
+      - \usepackage{pdflscape}
+      - \setkeys{Gin}{width=\linewidth,height=0.9\textheight,keepaspectratio}
+    toc: true
+    toc-depth: 4
+execute:
+  echo: false
+  warning: false
+  message: false
+  # ensure chunks run from the project root (where _targets/ lives)
+  dir: project
+pdf-engine: latexmk
+editor: visual
+#bibliography: references.bib
+---
+
+```{r}
+#| label: load-packages
+
+
+## Load targets
+if (!requireNamespace("targets", quietly = TRUE)) {
+  stop("The {targets} package is not installed/available in this render session.")
+}
+
+## Load knitr
+if (!requireNamespace("knitr", quietly = TRUE)) {
+  stop("The {knitr} package is not installed/available in this render session.")
+}
+
+## Load quarto
+if (!requireNamespace("quarto", quietly = TRUE)) {
+  stop("The {quarto} package is not installed/available in this render session.")
+}
+
+## Load rcompanion
+if (!requireNamespace("rcompanion", quietly = TRUE)) {
+  stop("The {rcompanion} package is not installed/available in this render session.")
+}
+
+## Load Venn
+if (!requireNamespace("VennDiagram", quietly = TRUE)) {
+  stop("The {VennDiagram} package is not installed/available in this render session.")
+}
+```
+
+\newpage
+
+# Important notes
+
+-   You should always check you have the most recent files! I use dynamic dates, so this can be done by checking that your files match the dates on the latest GitHub versions:
+
+    -   My profile can be found [here](https://github.com/LekkiWood)
+
+    -   My repositories are listed [here](https://github.com/LekkiWood?tab=repositories)
+
+    -   The most recent version of this PDF README file can be found [here](https://github.com/LekkiWood/MESA-Metabolomics-PCA/blob/main/MESA-Metabolomics-PCA.pdf)
+
+    -   The most recent version of the source code for this README file can be found [here](https://github.com/LekkiWood/MESA-Metabolomics-PCA/blob/main/MESA-Metabolomics-PCA.qmd)
+
+    -   The most recent source code for creating the output files can be found [here](https://github.com/LekkiWoodMESA-Metabolomics-PCA/blob/main/_targets.R)
+
+# Summary
+
+\newpage
+
+# Data Preparation (Clary - you can probably ignore this)
+
+## Metabolites
+
+```{r}
+#| label: load-file-info
+#| cache: TRUE
+
+######Metab File info
+
+Metab_table_QC_info <- targets::tar_read(build_metabs_QC)
+QC_info_mapping <- targets::tar_read(build_mapping_QC)
+CV_table <- targets::tar_read(Metabolite_CV_and_missingness)
+Duplicate_flag_file <- targets::tar_read(Duplicates_flag_file)
+final_file_info <- targets::tar_read(Final_metabs_long_info)
+
+
+path_amide <- targets::tar_read(path_amide)
+path_C8 <- targets::tar_read(path_C8)
+path_C18 <- targets::tar_read(path_C18)
+path_HILIC <- targets::tar_read(path_HILIC)
+path_amide_info <- targets::tar_read(path_amide_info)
+path_C8_info <- targets::tar_read(path_C8_info)
+path_C18_info <- targets::tar_read(path_C18_info)
+path_HILIC_info <- targets::tar_read(path_HILIC_info)
+path_bridge <- targets::tar_read(path_bridge)
+```
+
+### Input files
+
+-   A table of metabolite abundances from the amide assay: `{r} print(unlist(strsplit(path_amide, split="/"))[7])`
+-   A table of metabolite abundances from the C8-pos assay: `{r} print(unlist(strsplit(path_C8, split="/"))[7])`
+-   A table of metabolite abundances from the C18-neg assay: `{r} print(unlist(strsplit(path_C18, split="/"))[7])`
+-   A table of metabolite abundances from the HILIC assay: `{r} print(unlist(strsplit(path_HILIC, split="/"))[7])`
+-   Sample information for the amide assay: `{r} print(unlist(strsplit(path_amide_info, split="/"))[7])`
+-   Sample information for the C8-pos assay: `{r} print(unlist(strsplit(path_C8_info, split="/"))[7])`
+-   Sample information for the C18-neg assay: `{r} print(unlist(strsplit(path_C18_info, split="/"))[7])`
+-   Sample information for the HILIC assay: `{r} print(unlist(strsplit(path_HILIC_info, split="/"))[7])`
+-   A file to bridge SHARe ids (sidno) with MESA IDs (idno) `{r} print(unlist(strsplit(path_bridge, split="/"))[7])`
+
+### Build Raw Metabolite Tables
+
+#### Amide
+
+-   The amide sample info file contained information on N=`{r} Metab_table_QC_info$sample_info_dims$sample_info_dims_amide[1]` TOM IDs (each corresponding to one participant's abundances at one exam).
+-   Duplicates were identified (see @tbl-amide-dupes) and removed.
+
+```{r}
+#| label: tbl-amide-dupes 
+#| tbl-cap: "Duplicate IDs in raw amide assay data"
+#| cache: TRUE
+
+amide_dupes_table <- Metab_table_QC_info$duplicates_in_raw_tables$amide_dupes |>
+  gt::gt() |>
+  gt::tab_options(table.width = gt::pct(30)) |>
+  gt::as_latex()
+
+amide_dupes_table
+```
+
+-   Once the duplicates were removed, the final amide table contained data on N= `{r} Metab_table_QC_info$final_table_dims$final_table_dims_amide[2]-4` metabolites across `{r} Metab_table_QC_info$final_table_dims$final_table_dims_amide[1]` observations.
+
+#### C8
+
+-   The C8 sample info file contained information on N=`{r} Metab_table_QC_info$sample_info_dims$sample_info_dims_C8[1]` TOM IDs (each corresponding to one participant's abundances at one exam).
+-   Duplicates were identified (see @tbl-C8-dupes) and removed.
+
+```{r}
+#| label: tbl-C8-dupes 
+#| tbl-cap: "Duplicate IDs in raw C8 assay data"
+#| cache: TRUE
+
+C8_dupes_table <- Metab_table_QC_info$duplicates_in_raw_tables$C8_dupes |>
+  gt::gt() |>
+  gt::tab_options(table.width = gt::pct(30)) |>
+  gt::as_latex()
+
+C8_dupes_table
+```
+
+-   Once the duplicates were removed, the final amide table contained data on N= `{r} Metab_table_QC_info$final_table_dims$final_table_dims_C8[2]-4` metabolites across `{r} Metab_table_QC_info$final_table_dims$final_table_dims_C8[1]` observations.
+
+#### C18
+
+-   The C18 sample info file contained information on N=`{r} Metab_table_QC_info$sample_info_dims$sample_info_dims_C18[1]` TOM IDs (each corresponding to one participant's abundances at one exam).
+-   Duplicates were identified (see @tbl-C18-dupes) and removed.
+
+```{r}
+#| label: tbl-C18-dupes 
+#| tbl-cap: "Duplicate IDs in raw C8 assay data"
+#| cache: TRUE
+
+C18_dupes_table <- Metab_table_QC_info$duplicates_in_raw_tables$C18_dupes |>
+  gt::gt() |>
+  gt::tab_options(table.width = gt::pct(30)) |>
+  gt::as_latex()
+
+C18_dupes_table
+```
+
+-   Once the duplicates were removed, the final amide table contained data on N= `{r} Metab_table_QC_info$final_table_dims$final_table_dims_C18[2]-4` metabolites across `{r} Metab_table_QC_info$final_table_dims$final_table_dims_C18[1]` observations.
+
+#### HILIC
+
+-   The HILIC sample info file contained information on N=`{r} Metab_table_QC_info$sample_info_dims$sample_info_dims_HILIC[1]` TOM IDs (each corresponding to one participant's abundances at one exam).
+-   Duplicates were identified (see @tbl-HILIC-dupes) and removed.
+
+```{r}
+#| label: tbl-HILIC-dupes 
+#| tbl-cap: "Duplicate IDs in raw HILIC assay data"
+#| cache: TRUE
+
+HILIC_dupes_table <- Metab_table_QC_info$duplicates_in_raw_tables$HILIC_dupes |>
+  gt::gt() |>
+  gt::tab_options(table.width = gt::pct(30)) |>
+  gt::as_latex()
+
+HILIC_dupes_table
+```
+
+-   Once the duplicates were removed, the final amide table contained data on N= `{r} Metab_table_QC_info$final_table_dims$final_table_dims_HILIC[2]-4` metabolites across `{r} Metab_table_QC_info$final_table_dims$final_table_dims_HILIC[1]` observations.
+-   The cleaned and transposed files from each assay were merged into a final, long form metabolite table with N=`{r} Metab_table_QC_info$final_df_info$final_metabs_merged_dim[1]` observations on `{r} Metab_table_QC_info$final_df_info$final_metabs_merged_dim[2]` variables (5 variables are not metabolites: sidno, subject_id, TOM_ID, exam, idno).
+
+### Build Mapping file
+
+-   The following variables were created:
+    -   "Presence MESA X01" (coded 1)
+    -   "Presence MESA PILOT" (coded 1)
+    -   "Presence MESA MESA2" (coded 1).
+-   The original metabolite name (where known) from the lab was preserved as the variable 'Original_Metabolite_Name'
+-   A variable "Known_Compound" was created to indicate whether the compound had been assigned a name as of `{r} format(Sys.Date(), "%A, %B, %d, %Y")`^2^ (coding 1= yes, 0=no).
+-   For unknown compounds, the lab ID (arbitrarily assigned by The Broad) assigned within the X01 study was used, and prefixed with the assay name.
+-   The number of known/unknown compounds per assay is:
+    -   Amide: N= `{r} print(Metab_table_QC_info$knowns$amide_knowns[1,2])` known compounds and no unknown compounds.
+    -   C18: N= `{r} print(Metab_table_QC_info$knowns$C18_knowns[2,2])` known compounds and `{r} print(Metab_table_QC_info$knowns$C18_knowns[1,2])` unknown compounds.
+    -   C8: N= `{r} print(Metab_table_QC_info$knowns$C8_knowns[2,2])` known compounds and `{r} print(Metab_table_QC_info$knowns$C8_knowns[1,2])` unknown compounds.
+    -   HILIC: N= `{r} print(Metab_table_QC_info$knowns$HILIC_knowns[2,2])` known compounds and `{r} print(Metab_table_QC_info$knowns$HILIC_knowns[1,2])` unknown compounds.
+-   The final mapping file has information on `{r} print(Metab_table_QC_info$knowns$all_knowns[2,2])` known compounds and `{r} print(Metab_table_QC_info$knowns$all_knowns[1,2])` unknown compounds
+
+### Calculate QC data (missingness and CV)
+
+#### Coefficients of Variation (CV)
+
+-   For each of the four metabolite tables above, the QC samples for calculating the coefficient of variation (CV) were selected by selecting Sample_Type=="QC-pooled_ref" from the sample info files.
+-   CVs were calculated across all exams (since batches were not stratified by exam) as the mean of all QC samples, divided by the standard deviation of all QC samples, multiplied by 100, and saved as the variable "cv_percent".
+-   Across, all assays, the mean CV was `{r} mean(CV_table$cv_percent, na.rm=TRUE)`, with a range of `{r} min(CV_table$cv_percent, na.rm=TRUE)` - `{r} max(CV_table$cv_percent, na.rm=TRUE)`.
+-   The CVs per assay, in @tbl-cvs-by-assay:
+
+```{r}
+#| label: tbl-cvs-by-assay
+#| tbl-cap: "Coefficients of Variation by assay"
+#| cache: TRUE
+
+
+CV_table1 <- CV_table |>
+  dplyr::group_by(Assay) |>
+  dplyr::summarise(Mean_CV = mean(cv_percent, na.rm=TRUE)) |>
+  gt::gt() |>
+  gt::tab_options(table.width = gt::pct(30)) |>
+  gt::as_latex()
+
+CV_table1 
+
+```
+
+-   The CVs per assay, stratified into known and unknown metabolites are in @tbl-cvs-by-assay-by-known-status:
+
+```{r}
+#| label: tbl-cvs-by-assay-by-known-status
+#| tbl-cap: "Coefficients of Variation by assay and exam"
+#| cache: TRUE
+
+
+CV_table2 <- CV_table |>
+  dplyr::group_by(Assay, Known) |>
+  dplyr::summarise(Mean_CV = mean(cv_percent, na.rm=TRUE)) |>
+  dplyr::mutate(Known = dplyr::case_when(Known==1 ~ "Known Metabolites",
+                                         Known==0 ~ "Unknown Compounds",
+                                         TRUE ~ NA_character_)) 
+CV_table2 <- CV_table2 |>
+  gt::gt() |>
+  gt::tab_options(table.width = gt::pct(50)) |>
+  gt::fmt_number(decimals = 2) |>
+  gt::as_latex() 
+
+CV_table2
+
+```
+
+#### Missingness
+
+-   The proportion of missingness for each assay, by exam is in @tbl-missingness-by-assay-by-exam (note, this is for people with assay data at each exam, missingness does not include, for example, people who have data at exam 1, but have no data at exam 5):
+
+```{r}
+#| label: tbl-missingness-by-assay-by-exam
+#| tbl-cap: "Missingness by assay, and by exam"
+#| cache: TRUE
+
+
+CV_table3 <- CV_table |>
+  dplyr::group_by(Assay) |>
+  dplyr::summarise(Overall = mean(missing_all_exams, na.rm=TRUE),
+                   E1 = mean(missing_exam_1, na.rm=TRUE),
+                   E5 = mean(missing_exam_5, na.rm=TRUE),
+                   E6 = mean(missing_exam_6, na.rm=TRUE)) |>
+  gt::gt() |>
+  gt::tab_options(table.width = gt::pct(90)) |>
+  gt::as_latex()
+
+CV_table3
+
+```
+
+### Removing duplicate metabolites
+
+#### Annotation cleaning
+
+-   Some light cleaning of the metabolite annotations was conducted (note: this is an ongoing process):
+-   Glutamic acid had different HMDBs on the original HILIC and amide assays (see @tbl-glutamic-acid). Per advice: The HMDB from the HILIC was retained for both assays, and these were treated as the same compound.
+
+|               |             |               |       |
+|---------------|-------------|---------------|-------|
+| Lab ID        | HMDB        | Metabolite    | Assay |
+| QI18171       | HMDB0000148 | Glutamic acid | hilic |
+| Glutamic.acid | HMDB0003339 | Glutamic acid | amide |
+
+: HMDBs for Glutamic Acid in raw data {#tbl-glutamic-acid}
+
+-   The metabolite Glutamic acid had the HMDB ID changed from HMDB0003339 `->` HMDB0000148.
+-   For the amide assay, the compound with HMDB ID "HMDB0000122" had a different name to that used for the HILIC and C18 assays (see @tbl-HMDB0000122). Both names atr "correct", just different conventions, so these were treated as the same compounds when screening for duplicates.
+
++---------------------+---------------+---------------------+---------------+
+| Lab ID              | HMDB          | Metabolite          | Assay         |
++---------------------+---------------+---------------------+---------------+
+| Glucose.Fructose.   | HMDB0000122   | Glucose/Fructose/   | amide         |
+|                     |               |                     |               |
+| Galactose_waterloss |               | Galactose_waterloss |               |
++---------------------+---------------+---------------------+---------------+
+| QI3656              | HMDB0000122   | Hexose              | c18           |
++---------------------+---------------+---------------------+---------------+
+| QI14125             | HMDB0000122   | Hexose              | hilic         |
++---------------------+---------------+---------------------+---------------+
+
+: Annotations for HMDB0000122 in raw data {#tbl-HMDB0000122}
+
+#### Removing duplicated metabolites
+
+-   The HMDB_ID variable was used to flag compounds measured on more than one assay
+-   To flag metabolites included on more than one asssay, a variable was created "Retain", with the following coding:
+    -   0, labelled "Unique or missing HMDB ID": an unknown compound, or a unique HMDB ID
+    -   1, labelled "Duplicated HMDB ID with lowest CV": A duplicated HMDB ID with the lowest coefficient of variation (CV) across all compounds sharing that HMDB ID
+    -   2, labelled "Internal standard": A compound used as an internal standard (generally excluded from standard analyses)
+    -   3, labelled "Duplicated HMDB_ID and not lowest CV": A duplicated HMDB ID that does *not* have the lowest coefficient of variation (CV) across all compounds sharing that HMDB ID (generally excluded from analyses where you do not want the same compound included more than once)
+-   See @tbl-dupe-metabs
+
+```{r}
+#| label: tbl-dupe-metabs
+#| tbl-cap: "Information on metabolites included on more than one assay"
+#| cache: TRUE
+
+
+
+dupe_metabs_table <- as.data.frame(table(Duplicate_flag_file$Retain)) 
+
+colnames(dupe_metabs_table) <- c("Metabolite Duplicate status", "Frequency (N)")
+
+dupe_metabs_table2 <- dupe_metabs_table |>
+  gt::gt() |>
+  gt::tab_options(table.width = gt::pct(70)) |>
+  gt::as_latex()
+
+dupe_metabs_table2
+```
+
+-   All metabolites that had either a unique HMDB ID, or that had a duplicated HMDB ID but had the lowest CV from all those metabolites with the same HMDB ID were retained, all others were removed from the analysis.
+-   The final metabolite file contained information on N=`{r} print(final_file_info)[2] - 5` metabolites across N=`{r} final_file_info[1]` observations.
+
+### Some unresolved issues to note
+
+-   The raw data from the C18 assay has a smaller N than some others
+
+-   Most duplicated compounds are measured on different assays. One exception is LPC 16:0/0:0, which is measured twice on the C8 assay, with the same HMDB, but different assigned LAB IDs. For now, the compound with the Compound ID in the X01 of "TF04" is renamed as LPC 16:0/0:0_v2.
+
+-   Some lipids have the same HMDB ID, but the different common metabolite names, and these names are not listed as synonyms in the [HMDB](https://www.hmdb.ca/) (e.g., Cer 40:1;O2 (C8 assay) is not listed as a synonym for 18:1 (HILIC), and Cer 42:2;O2_A (C8) is not listed for a synonym for Cer 18:1;O2/24:1 (HILIC). For now, these are treated as separate compounds (see @tbl-HMDB0004952 and @tbl-HMDB0004953).
+
+|         |             |                  |       |
+|---------|-------------|------------------|-------|
+| Lab ID  | HMDB        | Metabolite       | Assay |
+| QI04610 | HMDB0004952 | Cer 18:1;O2/22:0 | hilic |
+| QI8023  | HMDB0004952 | Cer 40:1;O2      | c8    |
+
+: Annotations for HMDB0004952 in raw data {#tbl-HMDB0004952}
+
+|         |             |                  |       |
+|---------|-------------|------------------|-------|
+| Lab ID  | HMDB        | Metabolite       | Assay |
+| QI04540 | HMDB0004953 | Cer 18:1;O2/24:1 | hilic |
+| QI4265  | HMDB0004953 | Cer 42:2;O2_A    | c8    |
+
+: Annotations for HMDB0004952 in raw data {#tbl-HMDB0004953}
+
+\newpage
+
