@@ -51,6 +51,16 @@ if (!requireNamespace("rcompanion", quietly = TRUE)) {
 if (!requireNamespace("VennDiagram", quietly = TRUE)) {
   stop("The {VennDiagram} package is not installed/available in this render session.")
 }
+
+## Load mixOmics
+if (!requireNamespace("mixOmics", quietly = TRUE)) {
+  stop("The {mixOmics} package is not installed/available in this render session.")
+}
+
+## Load Venn
+if (!requireNamespace("ggplot2", quietly = TRUE)) {
+  stop("The {ggplot2} package is not installed/available in this render session.")
+}
 ```
 
 \newpage
@@ -376,3 +386,169 @@ dupe_metabs_table2
 
 \newpage
 
+# Methods
+
+## Procedure
+
+## Analyses
+
+### PCA
+
+#### Data selection
+
+As the modeling approach cannot accommodate missing data, a data-adaptive feature selection procedure to balance predictor inclusion with retention of participant-level completeness. Specifically, a greedy, forward-selection algorithm was applied in which candidate features (metabolites) were evaluated in blocks of 50 to improve computational efficiency. Within each iteration, the feature whose inclusion resulted in the smallest reduction in the number of eligible participants—defined as those with non-missing outcome data for true class membership—was selected from the evaluated block. Following selection, participant eligibility was recalculated based on complete-case availability for all included features. This process was repeated iteratively across successive blocks of candidate features, with features prioritized according to their minimal impact on sample retention. The procedure continued until inclusion of an additional feature would have reduced the analytic sample below a prespecified threshold of two-thirds of eligible participants.
+
+#### Unsupervised analysis of underlying structure
+
+To explore the underlying structure of the metabolite data without a priori hypotheses, an unsupervised principal component analysis (PCA) was conducted using the mixOmics package in R. PCA was applied to the set of selected features to reduce dimensionality and identify dominant axes of variation across participants. Prior to PCA analysis, continuous variables were standardized to have mean zero and unit variance to ensure comparability across features. The PCA algorithm decomposes the data into orthogonal components that successively capture the greatest variance in the dataset, with the first few components summarizing the primary patterns of variability. Component scores were used to visualize clustering and heterogeneity among participants, and loading vectors were examined to identify features contributing most strongly to each principal component. This unsupervised approach provided a data-driven summary of the multivariate structure, facilitating interpretation of complex relationships among features.
+
+Because this is an exploratory analysis for data QC, and not for prediction, we did not use training and test datasets - the PCA was just run on the whole sample after selection via the greedy algorithm.
+
+# Results
+
+## Participant characteristics
+
+Clary - tell me if you need this.
+
+## PCA
+
+```{r}
+#| label: read-in-results-data
+
+included_vars <- targets::tar_read(included_vars)
+included_pps <- targets::tar_read(included_pps)
+tune.pca <- targets::tar_read(tune.pca)
+final.pca <- targets::tar_read(final.pca)
+PCA_res <- targets::tar_read(PCA_res)
+loadings_matrix <- targets::tar_read(loadings_matrix)
+
+#Individual PCAs
+pca_C8 <- targets::tar_read(pca_C8)
+pca_C18 <- targets::tar_read(pca_C18)
+pca_Amide <- targets::tar_read(pca_Amide)
+pca_HILIC <- targets::tar_read(pca_HILIC)
+```
+
+-   The greedy algorithm selected N=`length(included_vars$Metabolite)` metabolites to include.
+
+    -   A list of these can be found [here](https://github.com/LekkiWood/MESA-Metabolomics-PCA/blob/main/outputs/MESA_PCA_Metabolites.csv).
+
+    -   A total of N=`{r} print(length(included_vars[included_vars$Assay=="Amide",]$Metabolite))`.     
+
+    -   A total of N=`{r} print(length(included_vars[included_vars$Assay=="HILIC",]$Metabolite))` were from the HILIC assay.  
+
+    -   A total of N=`{r} length(included_vars[included_vars$Assay=="C8",]$Metabolite)` were from the C8 assay
+
+    -   A total of N=`{r} length(included_vars[included_vars$Assay=="C18",]$Metabolite)` were from the C18 assay
+
+-   A total of N=`{r} print(included_pps)` MESA participants from exam 1 were included.
+
+A scree plot suggested that a single component was chosen for the PCA @fig-tuning-comp.
+
+```{r}
+#| label: fig-tuning-comp
+#| fig-cap: "Screeplot from the PCA performed on the MESA metabolite data"
+#| cache: TRUE
+
+plot(tune.pca)
+
+```
+
+A PCA was fit to the metabolite data with a single component.
+
+-   Individual component scores with various MESA IDs / TOPMed IDs can be found [here](https://github.com/LekkiWood/MESA-Metabolomics-PCA/blob/main/outputs/MESA_PCA_Metabolites.csv). 
+-   Variable loadings for each metabolite can be found [here](https://github.com/LekkiWood/MESA-Metabolomics-PCA/blob/main/outputs/MESA_loadings_matrix.csv).
+
+There was clear clustering of the MESA participants within component 1 @fig-comp-1. This did not seem to be due to gender @fig-comp-1-gender (I also checked age, BMI, diabetes status, and lipids, as well as the metabolite technical covariates I could think of).
+
+```{r}
+#| label: fig-comp-1
+#| fig-cap: "Distribution of scores for component 1"
+#| cache: TRUE
+ 
+mixOmics::plotIndiv(final.pca, 
+          ind.names = TRUE, 
+          legend = FALSE,  
+          comp=c(1,1))
+```
+
+```{r}
+#| label: fig-comp-1-gender
+#| fig-cap: "Distribution of scores for component 1 by gender"
+#| cache: TRUE
+
+mixOmics::plotIndiv(final.pca, ind.names = TRUE, 
+          group = as.numeric(PCA_res$gender1),
+          legend = TRUE, 
+          comp=c(1,1)
+          )
+          
+```
+
+### Assay specific results.
+
+The loadings of the metabolites onto component 1, by assay, are in @fig-loadings-by-assay.
+
+PCAs were run for each assay seperately, and the distribution of the extracted component plotted:
+
+-   C8: @fig-PCA-C8
+
+-   C18: @fig-PCA-C18
+
+-   Amide: @fig-PCA-Amide
+
+-   HILIC: @fig-PCA-HILIC
+
+    ```{r}
+    #| label: fig-loadings-by-assay
+    #| fig-cap: "Distribution of scores for component 1 by gender"
+    #| cache: TRUE
+
+    ggplot2::ggplot(loadings_matrix, ggplot2::aes(x = PC1, fill = Assay)) +
+      ggplot2::geom_histogram(alpha = 0.5, position = "identity")
+
+    ```
+
+```{r}
+#| label: fig-PCA-C8
+#| fig-cap: "Distribution of scores for component 1 for C8"
+#| cache: TRUE
+mixOmics::plotIndiv(pca_C8, 
+          ind.names = TRUE,
+          legend = FALSE, 
+          comp=c(1,1)) 
+
+```
+
+```{r}
+#| label: fig-PCA-C18
+#| fig-cap: "Distribution of scores for component 1 for C18"
+#| cache: TRUE
+mixOmics::plotIndiv(pca_C18, 
+          ind.names = TRUE,
+          legend = FALSE, 
+          comp=c(1,1)) 
+
+```
+
+```{r}
+#| label: fig-PCA-Amide
+#| fig-cap: "Distribution of scores for component 1 for Amide"
+#| cache: TRUE
+mixOmics::plotIndiv(pca_Amide, 
+          ind.names = TRUE,
+          legend = FALSE, 
+          comp=c(1,1)) 
+
+```
+
+```{r}
+#| label: fig-PCA-HILIC
+#| fig-cap: "Distribution of scores for component 1 for HILIC"
+#| cache: TRUE
+mixOmics::plotIndiv(pca_HILIC, 
+          ind.names = TRUE,
+          legend = FALSE, 
+          comp=c(1,1)) 
+
+```

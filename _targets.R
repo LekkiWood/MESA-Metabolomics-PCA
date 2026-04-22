@@ -75,36 +75,99 @@ list(
   #----------------------------------------------------------------------------#
 
   
-  #------------Files-------
+  #------------files-------
+  tar_target(E1_path, "/media/RawData/MESA/MESA-Phenotypes/MESA-Website-Phenos/MESAe1FinalLabel02092016.dta", format = "file"),
   
- # tar_target(Metab_PCA, 
- # PCA_function(datafile = Final_metabs_long,
- # metab_mapping = Mapping_file,
- # id_var   <- "sidno",
- # block_size = 50)
- # ),
+  #------------Analysis-------
   
+  tar_target(Metab_PCA, 
+             PCA_function(datafile = Final_metabs_long,
+                          metab_mapping = Mapping_file,
+                          id_var   <- "sidno",
+                          block_size = 50,
+                          metab_info = Metabolite_CV_and_missingness,
+                          E1_covs = E1_path)
+  ),
+  
+  #------------Output-------
+  
+  #---Included metabolites
+  tar_target(included_vars, Metab_PCA$chosen_vars),
+  
+  #Save as csv file
+  tar_target(included_vars_save,
+             {
+               out_dir  <- "outputs"
+               dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+               out_path <- file.path(out_dir, "MESA_PCA_Metabolites.csv")
+               readr::write_csv(included_vars, out_path)
+               out_path
+             },
+             format = "file"
+  ),
 
-  #---------------------------------
-  #---4B. Run individual sPLS-DA----
-  #---------------------------------
+
+  #---Included N
+  tar_target(included_pps, Metab_PCA$N),
   
-  #------------Metabs-------
-  # T2D in one year vs no T2D in 10 years
+  #---PCA tuning
+  tar_target(tune.pca, Metab_PCA$tune.pca),
+  
+  #---PCA model
+  tar_target(final.pca, Metab_PCA$final.pca),
+  
+  #---PCA results
+  tar_target(PCA_res, Metab_PCA$PCA_res),
+  
+  #---PCA scores
+  tar_target(PCA_scores, Metab_PCA$PCA_scores),
+
+  #Save as csv file
+  tar_target(PCA_scores_save,
+             {
+               out_dir  <- "outputs"
+               dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+               out_path <- file.path(out_dir, "MESA_PCA_scores.csv")
+               readr::write_csv(PCA_scores, out_path)
+               out_path
+             },
+             format = "file"
+  ),
   
   
   
+  #---PCA loadings matrix
+  tar_target(loadings_matrix, Metab_PCA$loadings_matrix),
+
+  #Save as csv file
+  tar_target(loadings_matrix_save,
+             {
+               out_dir  <- "outputs"
+               dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+               out_path <- file.path(out_dir, "MESA_loadings_matrix.csv")
+               readr::write_csv(loadings_matrix, out_path)
+               out_path
+             },
+             format = "file"
+  ),
   
+  
+  #-----Individual PCAs
+  
+  tar_target(pca_C8, Metab_PCA$pca_C8),
+  tar_target(pca_C18, Metab_PCA$pca_C18),
+  tar_target(pca_Amide, Metab_PCA$pca_Amide),
+  tar_target(pca_HILIC, Metab_PCA$pca_HILIC)
 
   #----------------------------------------------------------------------------#
   #--------------------------------Quarto file---------------------------------#
   #----------------------------------------------------------------------------#
   
-  tarchetypes::tar_quarto(
-   build_proteins_quarto,
-   path = "/media/Analyses/MESA-Metabolomics-PCA/MESA-Metabolomics-PCA.qmd",
-   quiet = FALSE
-  )
+  #tarchetypes::tar_quarto(
+  #build_proteins_quarto,
+  #path = "/media/Analyses/MESA-Metabolomics-PCA/MESA-Metabolomics-PCA.qmd",
+  #quiet = FALSE
+  #)
   
 )
   
